@@ -2,7 +2,7 @@
 # Install the inbox watcher: any file dropped in inbox/ is built and published automatically.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LABEL="com.docs-to-overcast.inbox"
+LABEL="com.overcastify.inbox"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 mkdir -p "$HOME/Library/LaunchAgents" "$ROOT/work"

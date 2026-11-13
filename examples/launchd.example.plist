@@ -5,7 +5,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.docs-to-overcast.inbox</string>
+    <string>com.overcastify.inbox</string>
     <key>ProgramArguments</key>
     <array>
         <string>__ROOT__/publish.sh</string>

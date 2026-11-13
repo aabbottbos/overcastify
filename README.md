@@ -1,4 +1,4 @@
-# docs-to-overcast
+# overcastify
 
 Turn documents, YouTube links and audio/video files into a private podcast feed for [Overcast](https://overcast.fm) (or any podcast app), running on your own Apple Silicon Mac.
 
@@ -41,7 +41,7 @@ Everything runs on your machine: no cloud text-to-speech, no subscriptions, no p
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/docs-to-overcast.git ~/podcast
+git clone https://github.com/YOUR-USERNAME/overcastify.git ~/podcast
 cd ~/podcast
 ./scripts/setup.sh            # installs tools, creates your private token and settings, starts the feed server
 cp examples/sample.md inbox/

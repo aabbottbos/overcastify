@@ -3,7 +3,7 @@
 ## 1. Install
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/docs-to-overcast.git ~/podcast
+git clone https://github.com/YOUR-USERNAME/overcastify.git ~/podcast
 cd ~/podcast
 ./scripts/setup.sh
 ```

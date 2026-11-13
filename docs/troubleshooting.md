@@ -16,7 +16,7 @@
 | Overcast loads the feed but shows no episodes | Audio links still say `localhost`, or Overcast cached an empty feed | `scripts/set-public-url.sh https://your-host`; then remove and re-add the podcast |
 | Episode shows but won't play | `PUBLIC_BASE_URL` is wrong | Same as above; check `<enclosure>` URLs with `curl` |
 | New episode is slow to appear | Overcast caches feeds | Pull to refresh; wait a few minutes |
-| File sits in the inbox | launchd agent not loaded, or file still changing | `launchctl print gui/$(id -u)/com.docs-to-overcast.inbox`; `tail work/builder.log` |
+| File sits in the inbox | launchd agent not loaded, or file still changing | `launchctl print gui/$(id -u)/com.overcastify.inbox`; `tail work/builder.log` |
 | File moved to `processed/failed/` | The build raised an error | Read `work/builder.log`, fix the cause, move the file back to `inbox/` |
 | YouTube download fails | yt-dlp is out of date or needs a JavaScript runtime | `brew upgrade yt-dlp`; `brew install deno` |
 | Mac slows down during a build | 8 GB is tight | Build one file at a time, keep Colima at 1 GB (`COLIMA_MEMORY`), close other apps |
