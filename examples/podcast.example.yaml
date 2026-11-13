@@ -1,0 +1,12 @@
+# Feed settings. scripts/setup.sh copies this to podcasts/<FEED_TOKEN>-podcast.yaml
+# and fills in "name". Do not add an "episodes:" list yourself: build_episode.py manages it.
+name: "docs-REPLACE_ME"
+title: "My Reading List"
+author-name: "Your Name"
+author-email: "you@example.com"
+description: "Documents and videos read aloud"
+language: "en"
+explicit: false
+image: "cover.jpg"
+categories:
+  - "Technology"

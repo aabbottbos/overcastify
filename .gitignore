@@ -1,0 +1,26 @@
+# secrets and user-specific settings
+.env
+podcasts/*.yaml
+Caddyfile
+*.plist
+!examples/*.plist
+
+# runtime data
+inbox/*
+processed/*
+work/*
+public/*
+!inbox/.gitkeep
+!processed/.gitkeep
+!work/.gitkeep
+!public/.gitkeep
+!podcasts/.gitkeep
+
+# python and OS
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.tmp
+*.mp3
+*.wav

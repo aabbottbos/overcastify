@@ -1,0 +1,13 @@
+# Allowlist proxy in front of the feed server. scripts/make-caddyfile.sh generates the real
+# one with your token. Only the feed, MP3 files and the cover are served; everything else is 404,
+# so the feed server's directory listing is never reachable from outside.
+:8081 {
+    bind 127.0.0.1
+    @feed path /YOUR_TOKEN.xml /YOUR_TOKEN/*.mp3 /YOUR_TOKEN/cover.jpg
+    handle @feed {
+        reverse_proxy 127.0.0.1:18080
+    }
+    handle {
+        respond 404
+    }
+}

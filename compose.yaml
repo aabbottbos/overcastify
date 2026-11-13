@@ -1,0 +1,19 @@
+# Podcastify serves the RSS feed and the audio files.
+# It listens on 127.0.0.1 only; public access goes through the Caddy allowlist (docs/setup.md).
+services:
+  podcastify:
+    image: fnayou/podcastify:v1.0.0
+    container_name: podcastify
+    ports:
+      - "127.0.0.1:${HOST_PORT:-18080}:${PORT:-8080}"
+    environment:
+      - PORT=${PORT:-8080}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:18080}
+      - RUN_ON_START=${RUN_ON_START:-true}
+      - PUBLISH_XML=${PUBLISH_XML:-true}
+    volumes:
+      - ./public:/app/public
+      - ./podcasts:/app/podcasts
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

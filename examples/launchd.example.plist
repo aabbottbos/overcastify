@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Runs publish.sh whenever the inbox folder changes.
+     scripts/install-launchd.sh fills in __ROOT__ and loads it. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.docs-to-overcast.inbox</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__ROOT__/publish.sh</string>
+    </array>
+    <key>WatchPaths</key>
+    <array>
+        <string>__ROOT__/inbox</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__ROOT__/work/builder.log</string>
+    <key>StandardErrorPath</key>
+    <string>__ROOT__/work/builder.log</string>
+</dict>
+</plist>
