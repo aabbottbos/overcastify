@@ -29,7 +29,17 @@ Pick whichever fits how you work. None of these are required.
 
 **Shared folder over Tailscale (no code).** Turn on File Sharing for this Mac (System Settings > General > Sharing), share the `inbox` folder, and connect to it from your phone or laptop over Tailscale. On iPhone: Files > Browse > ... > Connect to Server > `smb://<machine>.<tailnet>.ts.net`. Then Share > Save to Files > the inbox folder. On a Mac: Finder > Go > Connect to Server.
 
-**iCloud Drive folder.** Symlink or point the inbox at an iCloud Drive folder so Share > Save to Files works everywhere. Sync delays and not-yet-downloaded placeholder files can confuse the watcher, so test it before relying on it.
+**iCloud Drive folder.** Share > Save to Files works from iPhone, iPad and any Mac, and nothing extra is exposed on the network.
+
+1. Create a folder in iCloud Drive, for example `Overcastify Inbox`.
+2. Add it to `.env` with the full path in double quotes:
+   ```bash
+   PODCAST_INBOX="/Users/YOU/Library/Mobile Documents/com~apple~CloudDocs/Overcastify Inbox"
+   ```
+3. Run `scripts/install-launchd.sh` so the watcher follows the new folder.
+4. Drop a short `.md` file into the folder. The first time, macOS asks whether Python may access iCloud Drive; click **Allow** (or grant it later in System Settings > Privacy & Security > Files and Folders). Until you do, the build waits. Upgrading Homebrew's Python can reset this permission.
+
+Files that haven't finished downloading show up as hidden `.icloud` placeholders and are skipped until they arrive. On the Mac running the feed, turning off "Optimize Mac Storage" for iCloud Drive avoids that delay.
 
 **Google Docs.** File > Download > Markdown (`.md`) or Plain text, into the inbox. For hands-off syncing, a tool such as `rclone` can export a Drive folder into the inbox on a schedule.
 

@@ -37,7 +37,7 @@ import soundfile as sf
 os.environ["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
 
 ROOT = Path(os.environ.get("PODCAST_ROOT") or Path(__file__).resolve().parent).expanduser()
-INBOX, PROCESSED, WORK = ROOT / "inbox", ROOT / "processed", ROOT / "work"
+PROCESSED, WORK = ROOT / "processed", ROOT / "work"
 MEDIA_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus"}
 EXTS = {".md", ".markdown", ".txt", ".docx", ".html", ".htm", ".url", ".webloc"} | MEDIA_EXTS
 SR = 24000  # Kokoro output sample rate
@@ -56,6 +56,7 @@ def load_env(path):
 
 
 ENV = {**load_env(ROOT / ".env"), **os.environ}
+INBOX = Path(ENV.get("PODCAST_INBOX") or ROOT / "inbox").expanduser()
 TOKEN = ENV.get("FEED_TOKEN", "")
 MODEL = ENV.get("PODCAST_MODEL", "mlx-community/Kokoro-82M-bf16")
 VOICE = ENV.get("PODCAST_VOICE", "af_heart")

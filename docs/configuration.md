@@ -15,6 +15,7 @@ All settings live in `.env` (copied from [`.env.example`](../.env.example) by `s
 | `PODCAST_MODEL` | `mlx-community/Kokoro-82M-bf16` | Model repository |
 | `YT_AUDIO_QUALITY` | `96K` | MP3 bitrate for YouTube and audio/video files (about 43 MB per hour at 96K) |
 | `PODCAST_ROOT` | the repo folder | Where inbox, public and podcasts live |
+| `PODCAST_INBOX` | `inbox/` in the repo | Folder to watch for new files, e.g. one in iCloud Drive. Use a full path in double quotes and re-run `scripts/install-launchd.sh` after changing it. |
 | `YTDLP_BIN` | `yt-dlp` | Path to yt-dlp |
 | `PODCAST_CONTAINER` | `podcastify` | Container name used for feed regeneration |
 

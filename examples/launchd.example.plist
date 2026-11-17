@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Runs publish.sh whenever the inbox folder changes.
-     scripts/install-launchd.sh fills in __ROOT__ and loads it. -->
+     scripts/install-launchd.sh fills in __ROOT__ and __INBOX__ and loads it. -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -12,7 +12,7 @@
     </array>
     <key>WatchPaths</key>
     <array>
-        <string>__ROOT__/inbox</string>
+        <string>__INBOX__</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
