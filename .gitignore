@@ -1,6 +1,6 @@
 # secrets and user-specific settings
 .env
-podcasts/*.yaml
+podcasts/*
 Caddyfile
 *.plist
 !examples/*.plist
