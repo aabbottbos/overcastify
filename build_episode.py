@@ -7,18 +7,22 @@ Pipeline: read file -> clean markup for speech -> chunk -> speak with Kokoro (ml
 Audio and video files (.mp4 .m4v .mov .mkv .webm .m4a .mp3 .wav .flac ...) are not read aloud:
 the audio track is extracted to MP3 and added to the same feed.
 
-YouTube links (no speech): a short inbox file holding a YouTube URL (.txt, .md, .url or
-.webloc), or a URL on the command line, is downloaded as MP3 audio with yt-dlp and added to
-the same feed.
+Links: a short inbox file holding a URL (.txt, .md, .url or .webloc), or a URL on the command
+line. YouTube links are downloaded as MP3 audio with yt-dlp (no speech). Other web pages have
+their article text extracted with trafilatura and are read aloud.
+
+PDFs are converted to text with pdftotext (poppler) and read aloud.
 
 Usage:
   build_episode.py doc.md [more files]     build specific files
   build_episode.py https://youtu.be/ID     add a YouTube video's audio
+  build_episode.py https://example.com/a   read a web article aloud
   build_episode.py --inbox                 build everything waiting in the inbox folder
   build_episode.py --stub doc.md           fake voice (a tone) to test the plumbing fast
 """
 import argparse
 import datetime as dt
+import errno
 import fcntl
 import html
 import json
@@ -39,8 +43,9 @@ os.environ["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH"
 ROOT = Path(os.environ.get("PODCAST_ROOT") or Path(__file__).resolve().parent).expanduser()
 PROCESSED, WORK = ROOT / "processed", ROOT / "work"
 MEDIA_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus"}
-EXTS = {".md", ".markdown", ".txt", ".docx", ".html", ".htm", ".url", ".webloc"} | MEDIA_EXTS
+EXTS = {".md", ".markdown", ".txt", ".docx", ".html", ".htm", ".pdf", ".url", ".webloc"} | MEDIA_EXTS
 SR = 24000  # Kokoro output sample rate
+SF_DATALESS = 0x40000000  # macOS st_flags bit: iCloud file whose contents aren't downloaded yet
 FENCE = "`" * 3  # markdown code fence
 
 
@@ -65,6 +70,11 @@ SPEED = float(ENV.get("PODCAST_SPEED", "1.0"))
 CONTAINER = ENV.get("PODCAST_CONTAINER", "podcastify")
 YTDLP = ENV.get("YTDLP_BIN", "yt-dlp")
 YT_QUALITY = ENV.get("YT_AUDIO_QUALITY", "96K")  # MP3 bitrate for YouTube audio
+FAILED = Path(ENV.get("PODCAST_FAILED") or PROCESSED / "failed").expanduser()
+NOTIFY = ENV.get("PODCAST_NOTIFY", "true").lower() != "false"
+KEEP_EPISODES = int(ENV.get("PODCAST_KEEP_EPISODES") or 0)  # 0 keeps every episode
+KEEP_DAYS = int(ENV.get("PODCAST_KEEP_DAYS") or 0)
+PROCESSED_KEEP_DAYS = int(ENV.get("PROCESSED_KEEP_DAYS") or 0)
 
 
 def log(msg):
@@ -281,6 +291,64 @@ def feed_title(cfg_path):
     return (yaml.safe_load(cfg_path.read_text()) or {}).get("title", "Podcast")
 
 
+def prune_episodes(cfg_path, media_dir, keep=0, days=0, now=None):
+    """Drop episodes beyond the newest `keep`, or older than `days`, and delete their MP3s."""
+    import yaml
+
+    if not (keep or days):
+        return []
+    cfg = yaml.safe_load(cfg_path.read_text()) or {}
+    episodes = sorted(cfg.get("episodes") or [], key=lambda e: str(e.get("pub_date", "")))
+    kept = episodes
+    if days:
+        cutoff = (now or dt.datetime.now(dt.timezone.utc)) - dt.timedelta(days=days)
+        kept = [e for e in kept if str(e.get("pub_date", "")) >= cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")]
+    if keep:
+        kept = kept[-keep:]
+    removed = [e for e in episodes if e not in kept]
+    if not removed:
+        return []
+    cfg["episodes"] = kept
+    tmp = cfg_path.with_suffix(".tmp")
+    tmp.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True, width=1000))
+    tmp.replace(cfg_path)
+    for e in removed:
+        name = Path(str(e.get("file", ""))).name
+        if name.endswith(".mp3"):
+            (media_dir / name).unlink(missing_ok=True)
+        log(f"pruned episode: {e.get('title')}")
+    return removed
+
+
+def prune_processed(folder, days, now=None):
+    """Delete inbox files moved to processed/ more than `days` ago (by their timestamp prefix)."""
+    if not days or not folder.is_dir():
+        return []
+    cutoff = (now or dt.datetime.now()) - dt.timedelta(days=days)
+    removed = []
+    for p in folder.iterdir():
+        m = re.match(r"(\d{8}-\d{6})-", p.name)
+        if p.is_file() and m and dt.datetime.strptime(m.group(1), "%Y%m%d-%H%M%S") < cutoff:
+            p.unlink()
+            removed.append(p)
+    if removed:
+        log(f"deleted {len(removed)} processed file(s) older than {days} days")
+    return removed
+
+
+def notify(title, message):
+    """macOS notification; quietly does nothing if it can't be shown."""
+    if not NOTIFY:
+        return
+    try:
+        subprocess.run(["osascript", "-e", "on run argv", "-e",
+                        "display notification (item 2 of argv) with title (item 1 of argv)",
+                        "-e", "end run", title, message[:200]],
+                       capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def regenerate_feed():
     for cmd in (["docker", "exec", CONTAINER, "python", "/app/app.py", "generate"],
                 ["docker", "restart", CONTAINER]):
@@ -298,7 +366,24 @@ def regenerate_feed():
 
 # ---------- driver ----------
 
+def clean_pdf_text(text):
+    """Undo pdftotext layout: page breaks, bare page numbers and words hyphenated across lines."""
+    text = text.replace("\f", "\n\n")
+    text = re.sub(r"(\w)-\n(?=[a-z])", r"\1", text)
+    return re.sub(r"(?m)^[ \t]*(?:\d{1,4}|(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3}))[ \t]*$", "", text)
+
+
 def read_source(path):
+    if path.suffix.lower() == ".pdf":
+        if not shutil.which("pdftotext"):
+            raise RuntimeError("pdftotext is needed for PDF files: brew install poppler")
+        r = subprocess.run(["pdftotext", "-enc", "UTF-8", str(path), "-"], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError("could not read this PDF: " + (r.stderr.strip()[-300:] or "pdftotext failed"))
+        text = clean_pdf_text(r.stdout)
+        if not re.search(r"\w{3}", text):
+            raise RuntimeError("no text in this PDF (probably scanned images, which would need OCR)")
+        return text
     if path.suffix.lower() in {".docx", ".html", ".htm"}:
         if not shutil.which("pandoc"):
             raise RuntimeError(f"pandoc is needed for {path.suffix} files: brew install pandoc")
@@ -320,14 +405,23 @@ def find_youtube_url(text):
     return m.group(0).rstrip(".,;:)") if m else None
 
 
-def youtube_url_from_file(path):
-    """A small inbox file that is just a YouTube link: shared text, .url or .webloc."""
+URL_RE = re.compile(r"https?://[^\s<>\"']+")
+
+
+def find_url(text):
+    """A YouTube link if there is one, otherwise the first web link."""
+    m = URL_RE.search(text)
+    return find_youtube_url(text) or (m.group(0).rstrip(".,;:)") if m else None)
+
+
+def url_from_file(path):
+    """A small inbox file that is just a link: shared text, .url or .webloc."""
     suffix = path.suffix.lower()
     if suffix not in {".txt", ".md", ".markdown", ".url", ".webloc"} or path.stat().st_size > 4000:
         return None
     text = path.read_text(encoding="utf-8", errors="replace")
     if suffix in {".url", ".webloc"} or len(text.strip()) < 300:
-        return find_youtube_url(text)
+        return find_url(text)
     return None
 
 
@@ -372,6 +466,42 @@ def process_youtube(url, args):
     desc = f"{who}. {desc} Source: {info.get('webpage_url') or url}".replace(".. ", ". ")
     add_episode(cfg_path, mp3.name, title, desc)
     log(f"  wrote {mp3.name} ({mp3.stat().st_size / 1e6:.1f} MB)")
+
+
+# ---------- web articles ----------
+
+def article_byline(url, title, sitename, author):
+    """Tidy page metadata: drop a ' - Site Name' title suffix, and ignore implausible authors."""
+    host = re.sub(r"^https?://([^/:]+).*", r"\1", url).lower()
+    labels = [x for x in host.split(".") if x not in {"www", "m", "en", "com", "org", "net", "co", "uk", "io"}]
+    site = sitename if sitename and len(sitename) <= 40 else (labels[-1].capitalize() if labels else host)
+    m = re.match(r"(.+?)\s+[-|–—:•]\s+([^-|–—:•]{2,40})$", title or "")
+    if m and any(x in m.group(2).lower() for x in labels + [(sitename or "~").lower()]):
+        title, site = m.group(1), m.group(2).strip()
+    if not author or len(author) > 60 or len(author.split()) > 6:
+        author = None
+    return title, site, author
+
+
+def process_article(url, tts, args):
+    log(f"fetching article: {url}")
+    import trafilatura
+
+    page = trafilatura.fetch_url(url)
+    if not page:
+        raise RuntimeError("could not download this page (offline, blocked, or not found)")
+    text = trafilatura.extract(page, url=url, output_format="markdown", include_links=False,
+                               include_images=False, include_tables=False, include_comments=False)
+    if not text or len(text) < 200:
+        raise RuntimeError("no article text found on this page (paywalled, or built with JavaScript?)")
+    text = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|>])", r"\1", text)  # markdown escapes
+    text = re.sub(r"\[(?:\d+|[a-z]|citation needed)\]", "", text)  # citation markers like [1]
+    meta = trafilatura.extract_metadata(page, default_url=url)
+    title, site, author = article_byline(url, meta and meta.title, meta and meta.sitename, meta and meta.author)
+    title = args.title or title or find_title(text, url)
+    byline = ", ".join(x for x in (author, site) if x)
+    speak_episode(text, title, tts, intro=f"From {byline}." if byline else None,
+                  source=f"{byline}. Source: {url}" if byline else f"Source: {url}")
 
 
 # ---------- audio and video files ----------
@@ -419,59 +549,109 @@ def process_media(path, args):
 # ---------- documents ----------
 
 def process(path, tts, args):
-    url = youtube_url_from_file(path)
+    url = url_from_file(path)
     if path.suffix.lower() in MEDIA_EXTS:
         process_media(path, args)
     elif url:
-        process_youtube(url, args)
+        process_url(url, tts, args)
     elif path.suffix.lower() in {".url", ".webloc"}:
-        raise RuntimeError("no YouTube link found in this shortcut file")
+        raise RuntimeError("no link found in this shortcut file")
     else:
         process_text(path, tts, args)
     if path.parent == INBOX:  # only tidy up files that came from the inbox
         shutil.move(str(path), PROCESSED / f"{dt.datetime.now():%Y%m%d-%H%M%S}-{path.name}")
 
 
+def process_url(url, tts, args):
+    if find_youtube_url(url):
+        process_youtube(find_youtube_url(url), args)
+    else:
+        process_article(url, tts, args)
+
+
 def process_text(path, tts, args):
     log(f"building: {path.name}")
     raw = read_source(path)
-    title = args.title or find_title(raw, path.stem)
+    speak_episode(raw, args.title or find_title(raw, path.stem), tts)
+
+
+def speak_episode(raw, title, tts, intro=None, source=None):
+    """Read cleaned-up text aloud and add it to the feed."""
     paragraphs = clean_for_speech(raw)
     if not paragraphs:
         raise RuntimeError("nothing speakable in this file")
     if title.rstrip(".").lower() not in paragraphs[0].lower():
         paragraphs.insert(0, end_sentence(title))
+    if intro:
+        paragraphs.insert(1, intro)
     log(f"  title: {title} ({sum(len(p) for p in paragraphs)} characters)")
-
-    mp3 = new_mp3_path(title)
-    wav = WORK / f"{mp3.stem}.wav"
 
     cfg_path = ROOT / "podcasts" / f"{TOKEN}-podcast.yaml"
     if not cfg_path.exists():
         raise RuntimeError(f"missing {cfg_path}")
+    mp3 = new_mp3_path(title)
+    wav = WORK / f"{mp3.stem}.wav"
 
     render(paragraphs, tts(), wav)
     encode_mp3(wav, mp3, title, feed_title(cfg_path))
     wav.unlink(missing_ok=True)
-    add_episode(cfg_path, mp3.name, title, make_description(paragraphs))
+    desc = make_description([p for p in paragraphs if p != intro])
+    add_episode(cfg_path, mp3.name, title, f"{desc} {source}".strip() if source else desc)
     log(f"  wrote {mp3.name} ({mp3.stat().st_size / 1e6:.1f} MB)")
 
 
-def inbox_files(settle):
+def not_downloaded(exc):
+    """True if this error means an iCloud file's contents haven't arrived yet."""
+    while exc:
+        if isinstance(exc, OSError) and exc.errno == errno.EDEADLK:
+            return True
+        if "Resource deadlock avoided" in str(exc):
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
+def inbox_files(settle, skip=()):
+    """Files ready to build, and whether any others are still arriving.
+
+    A file is ready once it has sat unchanged for `settle` seconds. ctime counts too, because a
+    file copied or synced in keeps its original mtime. iCloud files whose contents haven't
+    downloaded yet are asked to download and left for later.
+    """
     now, ready, waiting = time.time(), [], False
     for p in sorted(INBOX.iterdir()):
         if p.name.startswith(".") or not p.is_file() or p.suffix.lower() not in EXTS:
             continue
-        if now - p.stat().st_mtime < settle:
+        st = p.stat()
+        if getattr(st, "st_flags", 0) & SF_DATALESS:
+            subprocess.run(["brctl", "download", str(p)], capture_output=True)
+            waiting = True
+        elif p in skip or now - max(st.st_mtime, st.st_ctime) < settle:
             waiting = True
         else:
             ready.append(p)
     return ready, waiting
 
 
+def record_failure(name, exc_text, path=None):
+    """Move a failed inbox file aside with a note saying why, and show a notification."""
+    reason = exc_text.strip().splitlines()[-1] if exc_text.strip() else "unknown error"
+    reason = re.sub(r"^\w+(?:\.\w+)*(?:Error|Exception): ", "", reason)
+    try:
+        FAILED.mkdir(parents=True, exist_ok=True)
+        stem = f"{dt.datetime.now():%Y%m%d-%H%M%S}-" + re.sub(r"[^\w.\- ]+", "_", str(name))[:120]
+        if path is not None:
+            shutil.move(str(path), FAILED / stem)
+        (FAILED / f"{stem}.error.txt").write_text(f"{name} could not be published.\n\n{reason}\n\n{exc_text}")
+    except OSError as e:
+        log(f"  could not move it aside: {e}")
+    notify("Podcast episode failed", f"{name}: {reason}")
+    return reason
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("files", nargs="*", help="document files and/or YouTube URLs")
+    ap.add_argument("files", nargs="*", help="document files and/or URLs (YouTube or web articles)")
     ap.add_argument("--inbox", action="store_true", help="process everything in the inbox folder")
     ap.add_argument("--stub", action="store_true", help="use a fake voice (tone) to test the plumbing")
     ap.add_argument("--title", help="override the episode title (single file)")
@@ -498,22 +678,27 @@ def main():
             engine = StubTTS() if args.stub else KokoroTTS(MODEL, VOICE, SPEED, LANG)
         return engine
 
+    pending = set()  # iCloud files that turned out to be still downloading
+
     def run(item):
         is_url = isinstance(item, str)
         try:
             if is_url:
-                url = find_youtube_url(item)
+                url = find_url(item)
                 if not url:
-                    raise RuntimeError("only YouTube links are supported as URLs")
-                process_youtube(url, args)
+                    raise RuntimeError("not a web link")
+                process_url(url, tts, args)
             else:
                 process(item, tts, args)
             return True
-        except Exception:
+        except Exception as e:
+            if not is_url and item.parent == INBOX and not_downloaded(e):
+                log(f"  {item.name} is still downloading from iCloud; will retry")
+                pending.add(item)
+                return False
             log(f"FAILED: {item if is_url else item.name}\n{traceback.format_exc()}")
-            if not is_url and item.parent == INBOX:
-                (PROCESSED / "failed").mkdir(parents=True, exist_ok=True)
-                shutil.move(str(item), PROCESSED / "failed" / item.name)
+            from_inbox = not is_url and item.parent == INBOX
+            record_failure(item if is_url else item.name, traceback.format_exc(), item if from_inbox else None)
             return False
 
     built = False
@@ -522,17 +707,23 @@ def main():
     if args.inbox:
         waits = 0
         while True:
-            ready, waiting = inbox_files(args.settle)
+            ready, waiting = inbox_files(args.settle, skip=pending)
             if ready:
                 for f in ready:
                     built |= run(f)
                 waits = 0
-            elif waiting and waits < 20:
+            elif waiting and waits < 200:  # up to 10 minutes for large iCloud downloads
                 time.sleep(3)
                 waits += 1
+                if waits % 10 == 0:
+                    pending.clear()  # give still-downloading files another try
             else:
                 break
-    if built and not args.no_feed:
+
+    cfg_path = ROOT / "podcasts" / f"{TOKEN}-podcast.yaml"
+    pruned = cfg_path.exists() and prune_episodes(cfg_path, ROOT / "public" / TOKEN, KEEP_EPISODES, KEEP_DAYS)
+    prune_processed(PROCESSED, PROCESSED_KEEP_DAYS)
+    if (built or pruned) and not args.no_feed:
         regenerate_feed()
 
 

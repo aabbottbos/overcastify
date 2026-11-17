@@ -9,7 +9,7 @@ cd "$ROOT"
 command -v brew >/dev/null || { echo "Install Homebrew first: https://brew.sh"; exit 1; }
 
 echo "==> Installing tools with Homebrew"
-brew install python@3.12 ffmpeg colima docker docker-compose caddy yt-dlp deno pandoc
+brew install python@3.12 ffmpeg colima docker docker-compose caddy yt-dlp deno pandoc poppler
 
 echo "==> Creating the Python environment"
 [ -d venv ] || "$(brew --prefix python@3.12)/bin/python3.12" -m venv venv

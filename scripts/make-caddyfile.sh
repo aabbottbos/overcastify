@@ -7,6 +7,18 @@ set -a; source "$ROOT/.env"; set +a
 OUT="${CADDYFILE:-/opt/homebrew/etc/Caddyfile}"
 : "${FEED_TOKEN:?FEED_TOKEN is not set in .env}"
 
+# Uploads (iOS Shortcut) only if scripts/install-upload.sh has set a token
+UPLOAD_BLOCK=""
+if [ -n "${UPLOAD_TOKEN:-}" ]; then
+  UPLOAD_BLOCK="    handle /upload {
+        request_body {
+            max_size ${UPLOAD_MAX_MB:-500}MB
+        }
+        reverse_proxy 127.0.0.1:${UPLOAD_PORT:-8082}
+    }
+"
+fi
+
 cat > "$OUT" <<CADDY
 :8081 {
     bind 127.0.0.1
@@ -14,7 +26,7 @@ cat > "$OUT" <<CADDY
     handle @feed {
         reverse_proxy 127.0.0.1:${HOST_PORT:-18080}
     }
-    handle {
+${UPLOAD_BLOCK}    handle {
         respond 404
     }
 }

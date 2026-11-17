@@ -8,6 +8,7 @@ The feed is public on the internet but unlisted. Its protection is a long random
 - **Allowlist proxy.** Caddy answers 404 for everything except the feed, MP3 files and the cover image, so the feed server's directory listing is never reachable. See [`examples/Caddyfile.example`](../examples/Caddyfile.example).
 - **Localhost binding.** The feed server listens on 127.0.0.1 only. Funnel or the tunnel connects through the proxy.
 - **No new privileges** for the container.
+- **Upload endpoint (optional).** If you run `scripts/install-upload.sh`, `POST /upload` is also reachable. It needs `Authorization: Bearer <UPLOAD_TOKEN>` (192 random bits, compared in constant time), only writes into the inbox, accepts only the file types the inbox builds, sanitizes filenames, and caps the size. Anyone with that token can add episodes to your feed, so rotate it (delete the line from `.env` and re-run the script) if it leaks.
 
 ## Check it
 

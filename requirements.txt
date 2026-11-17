@@ -3,3 +3,4 @@ misaki[en]
 soundfile
 numpy
 pyyaml
+trafilatura

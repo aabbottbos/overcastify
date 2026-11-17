@@ -15,6 +15,14 @@ All settings live in `.env` (copied from [`.env.example`](../.env.example) by `s
 | `PODCAST_MODEL` | `mlx-community/Kokoro-82M-bf16` | Model repository |
 | `YT_AUDIO_QUALITY` | `96K` | MP3 bitrate for YouTube and audio/video files (about 43 MB per hour at 96K) |
 | `PODCAST_ROOT` | the repo folder | Where inbox, public and podcasts live |
+| `PODCAST_FAILED` | `processed/failed/` | Where failed files and their `.error.txt` notes go. A folder inside an iCloud inbox (for example `.../Overcastify Inbox/Failed`) lets you see failures on your phone. |
+| `PODCAST_NOTIFY` | `true` | macOS notification when a file fails. `false` to turn off. |
+| `PODCAST_KEEP_EPISODES` | `0` (keep all) | Keep only the newest N episodes. Older ones leave the feed and their MP3s are deleted. |
+| `PODCAST_KEEP_DAYS` | `0` (keep all) | Remove episodes older than N days, the same way |
+| `PROCESSED_KEEP_DAYS` | `0` (keep all) | Delete source files in `processed/` (documents, videos) N days after they were built. Failed files are kept. |
+| `UPLOAD_TOKEN` | created by `scripts/install-upload.sh` | Secret for the upload endpoint (iOS Shortcut). Separate from `FEED_TOKEN`. |
+| `UPLOAD_PORT` | `8082` | Local port of the upload server |
+| `UPLOAD_MAX_MB` | `500` | Largest upload accepted. Re-run `scripts/make-caddyfile.sh` after changing it. |
 | `PODCAST_INBOX` | `inbox/` in the repo | Folder to watch for new files, e.g. one in iCloud Drive. Use a full path in double quotes and re-run `scripts/install-launchd.sh` after changing it. |
 | `YTDLP_BIN` | `yt-dlp` | Path to yt-dlp |
 | `PODCAST_CONTAINER` | `podcastify` | Container name used for feed regeneration |

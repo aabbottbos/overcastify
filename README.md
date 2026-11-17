@@ -8,8 +8,9 @@ Drop a file in a folder. A few minutes later it shows up in your podcast app, re
 
 | You drop in the inbox | You get |
 |---|---|
-| Markdown, text, HTML or Word (`.md` `.txt` `.html` `.docx`) | The document read aloud by [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), a local text-to-speech model. Markup, links, tables and code blocks are cleaned up for listening. |
+| Markdown, text, HTML, Word or PDF (`.md` `.txt` `.html` `.docx` `.pdf`) | The document read aloud by [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), a local text-to-speech model. Markup, links, tables and code blocks are cleaned up for listening. |
 | A YouTube link (a `.txt` or `.url` file, or a link on the command line) | The video's audio as an MP3, with no speech generated |
+| A link to a web article | The article's text, extracted and read aloud |
 | Video or audio (`.mp4` `.mov` `.mkv` `.webm` `.m4a` `.mp3` `.wav` ...) | The audio track as an MP3 |
 
 Everything runs on your machine: no cloud text-to-speech, no subscriptions, no per-document cost.
@@ -29,7 +30,7 @@ Everything runs on your machine: no cloud text-to-speech, no subscriptions, no p
 - **Audio:** ffmpeg (MP3) and yt-dlp (YouTube)
 - **Feed server:** [Podcastify](https://github.com/fnayou/podcastify) in a container (Colima, so you don't need Docker Desktop)
 - **Public access:** Tailscale Funnel (or a Cloudflare Tunnel) behind a Caddy proxy that only exposes the feed and audio
-- **Automation:** a launchd agent that watches the inbox
+- **Automation:** a launchd agent that watches the inbox (which can be an iCloud Drive folder), plus an optional upload endpoint for a one-tap iOS Shortcut
 
 ## Requirements
 
@@ -90,7 +91,11 @@ Issues and pull requests are welcome. A quick way to test changes without the vo
 ./venv/bin/python build_episode.py --stub --no-feed examples/sample.md
 ```
 
-`--stub` writes a short tone instead of speech, so you can check the plumbing in seconds.
+`--stub` writes a short tone instead of speech, so you can check the plumbing in seconds. Run the tests with:
+
+```bash
+./venv/bin/python -m unittest discover tests
+```
 
 ## License
 

@@ -17,6 +17,13 @@
 | Episode shows but won't play | `PUBLIC_BASE_URL` is wrong | Same as above; check `<enclosure>` URLs with `curl` |
 | New episode is slow to appear | Overcast caches feeds | Pull to refresh; wait a few minutes |
 | File sits in the inbox | launchd agent not loaded, or file still changing | `launchctl print gui/$(id -u)/com.overcastify.inbox`; `tail work/builder.log` |
-| File moved to `processed/failed/` | The build raised an error | Read `work/builder.log`, fix the cause, move the file back to `inbox/` |
+| File moved to `processed/failed/` (or `PODCAST_FAILED`) | The build raised an error | Read the `.error.txt` note next to it (full detail in `work/builder.log`), fix the cause, move the file back to the inbox |
+| iCloud file waits, log says "still downloading from iCloud" | Its contents haven't reached this Mac yet | It's built when the download finishes. If it never does, open the folder in Finder once, or turn off "Optimize Mac Storage". |
+| Article link fails: "no article text found" | Paywall, login wall, or a page that needs JavaScript | Save the page as PDF or copy the text into a `.md` file instead |
+| Article link fails: "could not download this page" | Site blocks automated requests (some return 503) | Same as above |
+| PDF fails: "no text in this PDF" | It's scanned images | Run it through OCR first (for example Preview's Live Text, or `ocrmypdf`) |
+| Shortcut gets `401` | Wrong or missing `Authorization` header | It must be `Bearer ` followed by `UPLOAD_TOKEN` from `.env` |
+| Shortcut gets `404` or `502` | Upload server not running, or Caddyfile from before the upload server | `scripts/install-upload.sh`; `tail work/upload.log` |
+| Shortcut gets `415` | File type the inbox doesn't accept | See the table in [ingestion.md](ingestion.md) |
 | YouTube download fails | yt-dlp is out of date or needs a JavaScript runtime | `brew upgrade yt-dlp`; `brew install deno` |
 | Mac slows down during a build | 8 GB is tight | Build one file at a time, keep Colima at 1 GB (`COLIMA_MEMORY`), close other apps |
